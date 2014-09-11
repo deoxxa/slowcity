@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Sprite Editor</title>
+    <link rel="stylesheet" href="/style.css">
+  </head>
+  <body>
+    <script src="/kibo.js"></script>
+    <script>
+window.addEventListener("load", function() {
+  var img = document.createElement("img");
+  img.src = "/micropolis_snes.gif";
+  img.addEventListener("load", function() {
+    var canvas = document.createElement("canvas");
+    document.body.appendChild(canvas);
+    canvas.height = img.height;
+    canvas.width = img.width;
+
+    var ctx = canvas.getContext("2d");
+
+    var x = 0, y = 0, w = 1, h = 1;
+    var tiles = {};
+
+    var draw = function draw() {
+      ctx.drawImage(img, 0, 0);
+
+      ctx.save();
+      ctx.strokeStyle = "red";
+      ctx.strokeWidth = "1px";
+      ctx.strokeRect(x*8, y*8, w*8, h*8);
+      ctx.restore();
+    };
+
+    var k = new Kibo();
+
+    k.down("shift down",  function() { h++; y--; });
+    k.down("shift up",    function() { h--; y++; });
+    k.down("shift left",  function() { w--; x++; });
+    k.down("shift right", function() { w++; x--; });
+    k.down("down",  function() { y++; return false; });
+    k.down("up",    function() { y--; return false; });
+    k.down("left",  function() { x--; return false; });
+    k.down("right", function() { x++; return false; });
+
+    k.up("any arrow", function() {
+      console.log([x, y, w, h]);
+
+      draw();
+    });
+
+    k.down("enter", function() {
+      var name = prompt("name?");
+
+      if (!name) {
+        return;
+      }
+
+      tiles[name] = {
+        x: x,
+        y: y,
+        w: w,
+        h: h,
+      };
+    });
+
+    k.down("d", function() {
+      console.log(JSON.stringify(tiles));
+    });
+
+    draw();
+  });
+});
+    </script>
+  </body>
+</html>
