@@ -224,7 +224,7 @@ View.prototype.renderFrame = function renderFrame(t, done) {
     }
 
     if (zi.length) {
-      this.ctx.strokeStyle = "rgba(255, 0, 0, 0.5)";
+      this.ctx.strokeStyle = "rgba(255, 180, 0, 0.5)";
       this.ctx.beginPath();
       for (var i=0;i<zi.length;i++) {
         if ((zi[i][0] & 1) === (zi[i][1] & 1)) {
