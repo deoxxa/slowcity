@@ -153,7 +153,7 @@ View.prototype.renderFrame = function renderFrame(t, done) {
 
   this.ctx.save();
 
-  this.ctx.fillStyle = "#808080";
+  this.ctx.fillStyle = "#505050";
   this.ctx.fillRect(0, 0, this.width, this.height);
 
   var ox = Math.floor(this.scrollX / 8),
