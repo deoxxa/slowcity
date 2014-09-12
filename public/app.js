@@ -119,6 +119,11 @@ var View = function View(options) {
   this.scrollY = 0;
   this.scrollXMax = (this.map.width  * 8) - this.width;
   this.scrollYMax = (this.map.height * 8) - this.height;
+  this.selectActive = false;
+  this.selectX = 0;
+  this.selectY = 0;
+  this.selectW = 0;
+  this.selectH = 0;
 
   this.debug = !!options.debug;
   this.debugText = "";
@@ -262,6 +267,13 @@ View.prototype.renderFrame = function renderFrame(t, done) {
   this.ctx.lineWidth = 1;
   this.ctx.strokeRect((this.cursorX-ox)*8, (this.cursorY-oy)*8, 8, 8);
 
+  if (this.selectActive) {
+    var d1 = Math.floor(this.frameTime / 250) & 1 ? 2 : 0,
+        d2 = d1 ? 0 : 2;
+    this.ctx.setLineDash([d1, d2, d2, d1]);
+    this.ctx.strokeRect((this.selectX-ox)*8, (this.selectY-oy)*8, this.selectW*8, this.selectH*8);
+  }
+
   this.ctx.restore();
 
   if (this.debug) {
@@ -320,6 +332,10 @@ var UI = function UI(options) {
 UI.prototype.attachEvents = function attachEvents() {
   var self = this;
 
+  var selecting = false;
+  var originX = 0,
+      originY = 0;
+
   this.view.el.addEventListener("mousemove", function(ev) {
     var ax = self.view.scrollX + ev.offsetX,
         ay = self.view.scrollY + ev.offsetY;
@@ -330,19 +346,42 @@ UI.prototype.attachEvents = function attachEvents() {
     self.view.cursorX = tx;
     self.view.cursorY = ty;
 
+    if (selecting) {
+      self.view.selectActive = true;
+
+      if (tx < originX) {
+        self.view.selectX = tx;
+      } else {
+        self.view.selectX = originX;
+      }
+      if (ty < originY) {
+        self.view.selectY = ty;
+      } else {
+        self.view.selectY = originY;
+      }
+
+      self.view.selectW = Math.abs(originX - tx) + 1;
+      self.view.selectH = Math.abs(originY - ty) + 1;
+    }
+
     ev.preventDefault();
     ev.stopPropagation();
   });
 
   this.view.el.addEventListener("mousedown", function(ev) {
-    console.log("mouse down", ev);
+    selecting = true;
+
+    self.view.selectActive = false;
+
+    originX = self.view.cursorX;
+    originY = self.view.cursorY;
 
     ev.preventDefault();
     ev.stopPropagation();
   });
 
   this.view.el.addEventListener("mouseup", function(ev) {
-    console.log("mouse up", ev);
+    selecting = false;
 
     ev.preventDefault();
     ev.stopPropagation();
