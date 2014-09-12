@@ -119,6 +119,7 @@ var View = function View(options) {
   this.scrollYMax = (this.map.height * 8) - this.height;
 
   this.debug = !!options.debug;
+  this.debugText = "";
   this.fts = [0,0,0,0,0,0,0,0,0,0];
   this.fti = 0;
   this.fta = 0;
@@ -267,7 +268,7 @@ View.prototype.renderFrame = function renderFrame(t, done) {
 View.prototype.renderDebug = function renderDebug() {
   this.ctx.save();
 
-  var text = this.scrollX + "," + this.scrollY + " : " + Math.round(1 / this.fta) + " fps";
+  var text = this.scrollX + "," + this.scrollY + " : " + Math.round(1 / this.fta) + " fps" + this.debugText;
   var m = this.ctx.measureText(text);
 
   this.ctx.fillStyle = "#000000";
