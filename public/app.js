@@ -113,6 +113,8 @@ var View = function View(options) {
 
   this.afr = null;
 
+  this.cursorX = 0;
+  this.cursorY = 0;
   this.scrollX = 0;
   this.scrollY = 0;
   this.scrollXMax = (this.map.width  * 8) - this.width;
@@ -256,6 +258,10 @@ View.prototype.renderFrame = function renderFrame(t, done) {
     }
   }
 
+  this.ctx.strokeStyle = "rgba(255, 0, 0, 1)";
+  this.ctx.lineWidth = 1;
+  this.ctx.strokeRect((this.cursorX-ox)*8, (this.cursorY-oy)*8, 8, 8);
+
   this.ctx.restore();
 
   if (this.debug) {
@@ -314,6 +320,20 @@ var UI = function UI(options) {
 UI.prototype.attachEvents = function attachEvents() {
   var self = this;
 
+  this.view.el.addEventListener("mousemove", function(ev) {
+    var ax = self.view.scrollX + ev.offsetX,
+        ay = self.view.scrollY + ev.offsetY;
+
+    var tx = Math.floor(ax / 8),
+        ty = Math.floor(ay / 8);
+
+    self.view.cursorX = tx;
+    self.view.cursorY = ty;
+
+    ev.preventDefault();
+    ev.stopPropagation();
+  });
+
   this.view.el.addEventListener("mousedown", function(ev) {
     console.log("mouse down", ev);
 
@@ -324,11 +344,6 @@ UI.prototype.attachEvents = function attachEvents() {
   this.view.el.addEventListener("mouseup", function(ev) {
     console.log("mouse up", ev);
 
-    ev.preventDefault();
-    ev.stopPropagation();
-  });
-
-  this.view.el.addEventListener("mousemove", function(ev) {
     ev.preventDefault();
     ev.stopPropagation();
   });
