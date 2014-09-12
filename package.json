@@ -4,7 +4,8 @@
   "description": "A municipal simulation in the spirit of SimCity",
   "main": "index.js",
   "dependencies": {
-    "lodash.defaults": "^2.4.1"
+    "lodash.defaults": "^2.4.1",
+    "shell-quote": "^1.4.2"
   },
   "devDependencies": {
     "beefy": "^2.1.1",
