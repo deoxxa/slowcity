@@ -253,10 +253,6 @@ View.prototype.renderFrame = function renderFrame(t, done) {
         var road = this.map.getRoad(ox + x, oy + y);
 
         if (road & 0x01) {
-          if (!spriteInfoRoad[road & 0xf0]) {
-            console.log((road & 0xfe).toString(16));
-          }
-
           this.ctx.putImageData(spriteInfo[spriteInfoRoad[road & 0xf0]].data, x*8, y*8);
         }
       }
