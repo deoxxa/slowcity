@@ -392,6 +392,53 @@ var UI = module.exports = function UI(options) {
 
   this.renderer = options.renderer;
   this.map = options.map;
+  this.commands = {
+    debug: function setDebug(state) {
+      this.renderer.debug = state === "on";
+    },
+    select: function select(x, y, w, h) {
+      x = parseInt(x, 10);
+      y = parseInt(y, 10);
+      w = parseInt(w, 10);
+      h = parseInt(h, 10);
+
+      if (Number.isNaN(x) || Number.isNaN(y) || Number.isNaN(w) || Number.isNaN(h)) {
+        this.renderer.selectActive = false;
+        return;
+      }
+
+      this.renderer.selectActive = true;
+      this.renderer.selectX = x;
+      this.renderer.selectY = y;
+      this.renderer.selectW = w;
+      this.renderer.selectH = h;
+    },
+    zone: function zone(type, x, y, w, h) {
+      type = parseInt(type || "0", 10);
+
+      x = parseInt(x, 10);
+      y = parseInt(y, 10);
+      w = parseInt(w, 10);
+      h = parseInt(h, 10);
+
+      if (Number.isNaN(x) || Number.isNaN(y) || Number.isNaN(w) || Number.isNaN(h)) {
+        if (!this.renderer.selectActive) {
+          return;
+        }
+
+        x = this.renderer.selectX;
+        y = this.renderer.selectY;
+        w = this.renderer.selectW;
+        h = this.renderer.selectH;
+      }
+
+      for (var i=0;i<w;i++) {
+        for (var j=0;j<h;j++) {
+          this.map.setZone(x+i, y+j, type);
+        }
+      }
+    },
+  };
 };
 
 UI.prototype.attachEvents = function attachEvents() {
@@ -463,6 +510,7 @@ UI.prototype.attachEvents = function attachEvents() {
 
       self.renderer.inputActive = true;
       self.renderer.inputText = "";
+      self.renderer.inputIndex = 0;
 
       return;
     }
@@ -477,6 +525,7 @@ UI.prototype.attachEvents = function attachEvents() {
     if (c === "enter") {
       var inputText = self.renderer.inputText;
       self.renderer.inputText = "";
+      self.renderer.inputIndex = 0;
       self.commandLine(inputText);
       return;
     }
@@ -484,6 +533,7 @@ UI.prototype.attachEvents = function attachEvents() {
     if (c === "escape") {
       self.renderer.inputActive = false;
       self.renderer.inputText = "";
+      self.renderer.inputIndex = 0;
       return;
     }
 
@@ -607,6 +657,10 @@ UI.prototype.command = function command(text) {
   var bits = sq.parse(text);
 
   console.log(bits);
+
+  if (this.commands[bits[0]]) {
+    this.commands[bits[0]].apply(this, bits.slice(1));
+  }
 };
 
 },{"shell-quote":11}],4:[function(require,module,exports){
@@ -619,7 +673,6 @@ window.addEventListener("load", function() {
 
   var renderer = new Renderer({
     map: map,
-    debug: true,
     width: window.innerWidth - 10,
     height: window.innerHeight - 10,
   });
