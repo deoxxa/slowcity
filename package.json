@@ -11,7 +11,7 @@
     "browserify": "^5.11.2"
   },
   "scripts": {
-    "start": "cd public && beefy lib:app.js"
+    "start": "beefy lib:app.js"
   },
   "repository": {
     "type": "git",
