@@ -9,7 +9,7 @@
     <script>
 window.addEventListener("load", function() {
   var img = document.createElement("img");
-  img.src = "/micropolis_snes.gif";
+  img.src = "/tiles.gif";
   img.addEventListener("load", function() {
     var canvas = document.createElement("canvas");
     document.body.appendChild(canvas);
@@ -48,12 +48,16 @@ window.addEventListener("load", function() {
       draw();
     });
 
+    var previousName = null;
+
     k.down("enter", function() {
-      var name = prompt("name?");
+      var name = prompt("name?", previousName || "");
 
       if (!name) {
         return;
       }
+
+      previousName = name;
 
       tiles[name] = {
         x: x,

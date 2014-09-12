@@ -1,0 +1,26 @@
+{
+  "name": "slowcity",
+  "version": "0.0.0",
+  "description": "A municipal simulation in the spirit of SimCity",
+  "main": "index.js",
+  "dependencies": {
+    "lodash.defaults": "^2.4.1"
+  },
+  "devDependencies": {
+    "beefy": "^2.1.1",
+    "browserify": "^5.11.2"
+  },
+  "scripts": {
+    "start": "cd public && beefy lib:app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/deoxxa/slowcity.git"
+  },
+  "author": "Conrad Pankoff <deoxxa@fknsrs.biz> (http://www.fknsrs.biz/)",
+  "license": "BSD",
+  "bugs": {
+    "url": "https://github.com/deoxxa/slowcity/issues"
+  },
+  "homepage": "https://github.com/deoxxa/slowcity"
+}
