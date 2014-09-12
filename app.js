@@ -579,7 +579,7 @@ window.addEventListener("load", function() {
 
   renderer.splash();
 
-  renderer.loadTiles("/tiles.gif", function(err) {
+  renderer.loadTiles("tiles.gif", function(err) {
     if (err) {
       return renderer.error(err);
     }
