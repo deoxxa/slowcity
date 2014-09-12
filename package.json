@@ -11,7 +11,8 @@
     "browserify": "^5.11.2"
   },
   "scripts": {
-    "start": "beefy lib:app.js"
+    "start": "beefy lib:app.js",
+    "build": "browserify -o app.js lib"
   },
   "repository": {
     "type": "git",
