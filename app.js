@@ -68,7 +68,7 @@ Map.prototype.setRoad = function setRoad(x, y, road) {
   }
 };
 
-},{"lodash.defaults":5}],2:[function(require,module,exports){
+},{"lodash.defaults":8}],2:[function(require,module,exports){
 var defaults = require("lodash.defaults");
 
 var Renderer = module.exports = function Renderer(options) {
@@ -110,7 +110,6 @@ var Renderer = module.exports = function Renderer(options) {
   this.selectW = 0;
   this.selectH = 0;
 
-  this.inputActive = false;
   this.inputText = "";
   this.inputIndex = 0;
 
@@ -319,21 +318,19 @@ Renderer.prototype.renderFrame = function renderFrame(t, done) {
     this.ctx.strokeRect((this.selectX-ox)*8, (this.selectY-oy)*8, this.selectW*8, this.selectH*8);
   }
 
-  if (this.inputActive) {
-    this.ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
-    this.ctx.fillRect(0, this.height - 14, this.width, 14);
+  this.ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
+  this.ctx.fillRect(0, this.height - 14, this.width, 14);
 
-    var m = this.ctx.measureText("> " + this.inputText.substr(0, this.inputIndex));
-    this.ctx.strokeStyle = "rgba(255, 255, 255, " + Math.abs(((this.frameTime / 1000) % 1.2) - 0.5) + ")";
-    this.ctx.beginPath();
-    this.ctx.moveTo(m.width + 4, this.height - 12);
-    this.ctx.lineTo(m.width + 4, this.height - 2);
-    this.ctx.closePath();
-    this.ctx.stroke();
+  var m = this.ctx.measureText("> " + this.inputText.substr(0, this.inputIndex));
+  this.ctx.strokeStyle = "rgba(255, 255, 255, " + Math.abs(((this.frameTime / 1000) % 1.2) - 0.5) + ")";
+  this.ctx.beginPath();
+  this.ctx.moveTo(m.width + 4, this.height - 12);
+  this.ctx.lineTo(m.width + 4, this.height - 2);
+  this.ctx.closePath();
+  this.ctx.stroke();
 
-    this.ctx.fillStyle = "#FF0000";
-    this.ctx.fillText("> " + this.inputText, 3, this.height - 3);
-  }
+  this.ctx.fillStyle = "#FF0000";
+  this.ctx.fillText("> " + this.inputText, 3, this.height - 3);
 
   this.ctx.restore();
 
@@ -380,8 +377,8 @@ Renderer.prototype.stop = function stop() {
   return this;
 };
 
-},{"lodash.defaults":5}],3:[function(require,module,exports){
-var sq = require("shell-quote");
+},{"lodash.defaults":8}],3:[function(require,module,exports){
+var LISP = require("LISP.js");
 
 var UI = module.exports = function UI(options) {
   options = options || {};
@@ -390,55 +387,88 @@ var UI = module.exports = function UI(options) {
     throw Error("renderer option must be supplied");
   }
 
+  this.ctx = new LISP.Context();
+  for (var k in this.procedures) {
+    this.ctx.procedures[k] = this.procedures[k].bind(this);
+  }
+
+  this.mouseEnabled = true;
+
   this.renderer = options.renderer;
   this.map = options.map;
-  this.commands = {
-    debug: function setDebug(state) {
-      this.renderer.debug = state === "on";
-    },
-    select: function select(x, y, w, h) {
-      x = parseInt(x, 10);
-      y = parseInt(y, 10);
-      w = parseInt(w, 10);
-      h = parseInt(h, 10);
 
-      if (Number.isNaN(x) || Number.isNaN(y) || Number.isNaN(w) || Number.isNaN(h)) {
-        this.renderer.selectActive = false;
-        return;
-      }
+  this.history = [];
+  this.historyIndex = 0;
+};
 
-      this.renderer.selectActive = true;
-      this.renderer.selectX = x;
-      this.renderer.selectY = y;
-      this.renderer.selectW = w;
-      this.renderer.selectH = h;
-    },
-    zone: function zone(type, x, y, w, h) {
-      type = parseInt(type || "0", 10);
+UI.prototype.procedures = {
+  debug: function debug(args, env) {
+    if (args.length > 0) {
+      this.renderer.debug = this.ctx.exec(args[0], env);
+    }
 
-      x = parseInt(x, 10);
-      y = parseInt(y, 10);
-      w = parseInt(w, 10);
-      h = parseInt(h, 10);
+    return this.renderer.debug;
+  },
+  mouse: function mouse(args, env) {
+    if (args.length > 0) {
+      this.mouseEnabled = this.ctx.exec(args[0], env);
+    }
 
-      if (Number.isNaN(x) || Number.isNaN(y) || Number.isNaN(w) || Number.isNaN(h)) {
-        if (!this.renderer.selectActive) {
-          return;
-        }
+    return this.mouseEnabled;
+  },
+  history: function history(args, env) {
+    return this.history;
+  },
+  select: function select(args, env) {
+    var a = false, x = 0, y = 0, w = 0, h = 0;
 
-        x = this.renderer.selectX;
-        y = this.renderer.selectY;
-        w = this.renderer.selectW;
-        h = this.renderer.selectH;
-      }
+    if (args.length === 2) {
+      a = true;
+      x = this.renderer.cursorX;
+      y = this.renderer.cursorY;
+      w = this.ctx.exec(args[0], env);
+      h = this.ctx.exec(args[1], env);
+    } else if (args.length === 4) {
+      a = true;
+      x = this.ctx.exec(args[0], env);
+      y = this.ctx.exec(args[1], env);
+      w = this.ctx.exec(args[2], env);
+      h = this.ctx.exec(args[3], env);
+    }
 
-      for (var i=0;i<w;i++) {
-        for (var j=0;j<h;j++) {
-          this.map.setZone(x+i, y+j, type);
-        }
-      }
-    },
-  };
+    this.renderer.selectActive = a;
+    this.renderer.selectX = x;
+    this.renderer.selectY = y;
+    this.renderer.selectW = w;
+    this.renderer.selectH = h;
+
+    return true;
+  },
+  // zone: function zone(type, x, y, w, h) {
+  //   type = parseInt(type || "0", 10);
+
+  //   x = parseInt(x, 10);
+  //   y = parseInt(y, 10);
+  //   w = parseInt(w, 10);
+  //   h = parseInt(h, 10);
+
+  //   if (Number.isNaN(x) || Number.isNaN(y) || Number.isNaN(w) || Number.isNaN(h)) {
+  //     if (!this.renderer.selectActive) {
+  //       return;
+  //     }
+
+  //     x = this.renderer.selectX;
+  //     y = this.renderer.selectY;
+  //     w = this.renderer.selectW;
+  //     h = this.renderer.selectH;
+  //   }
+
+  //   for (var i=0;i<w;i++) {
+  //     for (var j=0;j<h;j++) {
+  //       this.map.setZone(x+i, y+j, type);
+  //     }
+  //   }
+  // },
 };
 
 UI.prototype.attachEvents = function attachEvents() {
@@ -504,36 +534,51 @@ UI.prototype.attachEvents = function attachEvents() {
       return;
     }
 
-    if (c === "enter" && !self.renderer.inputActive) {
-      ev.preventDefault();
-      ev.stopPropagation();
-
-      self.renderer.inputActive = true;
-      self.renderer.inputText = "";
-      self.renderer.inputIndex = 0;
-
-      return;
-    }
-
-    if (!self.renderer.inputActive) {
-      return;
-    }
-
     ev.preventDefault();
     ev.stopPropagation();
 
-    if (c === "enter") {
-      var inputText = self.renderer.inputText;
-      self.renderer.inputText = "";
-      self.renderer.inputIndex = 0;
-      self.commandLine(inputText);
+    if (c === "up" || c === "down") {
+      if (c === "up") {
+        if (self.historyIndex === null) {
+          self.historyIndex = 0;
+        } else if (self.historyIndex < self.history.length - 1) {
+          self.historyIndex++;
+        }
+      } else if (c === "down") {
+        if (self.historyIndex === null || self.historyIndex === 0) {
+          self.historyIndex = null;
+        } else {
+          self.historyIndex--;
+        }
+      }
+
+      if (self.historyIndex === null) {
+        self.renderer.inputText = "";
+        self.renderer.inputIndex = 0;
+      } else {
+        self.renderer.inputText = self.history[self.historyIndex];
+        self.renderer.inputIndex = self.renderer.inputText.length;
+      }
+
       return;
     }
 
-    if (c === "escape") {
-      self.renderer.inputActive = false;
+    if (c === "enter") {
+      self.historyIndex = null;
+
+      var inputText = self.renderer.inputText;
+
       self.renderer.inputText = "";
       self.renderer.inputIndex = 0;
+
+      var res = self.exec(inputText);
+
+      console.log(res);
+
+      if (res.success) {
+        self.history.unshift(inputText);
+      }
+
       return;
     }
 
@@ -575,6 +620,13 @@ UI.prototype.attachEvents = function attachEvents() {
       originY = 0;
 
   this.renderer.el.addEventListener("mousemove", function(ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
+
+    if (!self.mouseEnabled) {
+      return;
+    }
+
     var ax = self.renderer.scrollX + ev.offsetX,
         ay = self.renderer.scrollY + ev.offsetY;
 
@@ -601,33 +653,42 @@ UI.prototype.attachEvents = function attachEvents() {
       self.renderer.selectW = Math.abs(originX - tx) + 1;
       self.renderer.selectH = Math.abs(originY - ty) + 1;
     }
-
-    ev.preventDefault();
-    ev.stopPropagation();
   });
 
   this.renderer.el.addEventListener("mousedown", function(ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
+
+    if (!self.mouseEnabled) {
+      return;
+    }
+
     selecting = true;
 
     self.renderer.selectActive = false;
 
     originX = self.renderer.cursorX;
     originY = self.renderer.cursorY;
-
-    ev.preventDefault();
-    ev.stopPropagation();
   });
 
   this.renderer.el.addEventListener("mouseup", function(ev) {
-    selecting = false;
-
     ev.preventDefault();
     ev.stopPropagation();
+
+    if (!self.mouseEnabled) {
+      return;
+    }
+
+    selecting = false;
   });
 
   this.renderer.el.addEventListener("wheel", function(ev) {
     ev.preventDefault();
     ev.stopPropagation();
+
+    if (!self.mouseEnabled) {
+      return;
+    }
 
     if (Math.abs(ev.wheelDeltaX) > Math.abs(ev.wheelDeltaY)) {
       self.renderer.scrollX -= ev.wheelDeltaX;
@@ -643,27 +704,23 @@ UI.prototype.attachEvents = function attachEvents() {
   });
 };
 
-UI.prototype.commandLine = function commandLine(text) {
-  var commands = text.split(/;/).map(function(e) {
-    return e.trim();
-  });
-
-  for (var i=0;i<commands.length;i++) {
-    this.command(commands[i]);
+UI.prototype.exec = function exec(text) {
+  try {
+    var res = this.ctx.exec(text);
+  } catch (e) {
+    return {
+      success: false,
+      error: e,
+    };
   }
+
+  return {
+    success: true,
+    result: res,
+  };
 };
 
-UI.prototype.command = function command(text) {
-  var bits = sq.parse(text);
-
-  console.log(bits);
-
-  if (this.commands[bits[0]]) {
-    this.commands[bits[0]].apply(this, bits.slice(1));
-  }
-};
-
-},{"shell-quote":11}],4:[function(require,module,exports){
+},{"LISP.js":5}],4:[function(require,module,exports){
 var Map = require("./map"),
     Renderer = require("./renderer"),
     UI = require("./ui");
@@ -675,10 +732,6 @@ window.addEventListener("load", function() {
     map: map,
     width: window.innerWidth - 10,
     height: window.innerHeight - 10,
-  });
-
-  window.addEventListener("resize", function() {
-    renderer.setDimensions(window.innerWidth - 10, window.innerHeight - 10);
   });
 
   var ui = new UI({
@@ -696,9 +749,297 @@ window.addEventListener("load", function() {
     ui.attachEvents();
     renderer.start();
   });
+
+  window.addEventListener("resize", function() {
+    renderer.setDimensions(window.innerWidth - 10, window.innerHeight - 10);
+  });
 });
 
 },{"./map":1,"./renderer":2,"./ui":3}],5:[function(require,module,exports){
+"use strict";
+
+exports.parse = require('./parse');
+exports.Context = require('./context');
+
+},{"./context":6,"./parse":7}],6:[function(require,module,exports){
+"use strict";
+
+var parse = require('./parse');
+
+var Context = function Context() {
+	this.procedures = {};
+};
+
+Context.prototype.exec = function(expr, env) {
+	if (typeof expr == 'string' && expr.charAt(0) == '(') {
+		expr = parse(expr);
+	} else if (typeof expr == 'number') {
+		return expr;
+	} else if (!Array.isArray(expr)) {
+		expr = [expr];
+	}
+
+	if (!env) {
+		env = Object.create(atoms);
+	}
+
+	var args = [];
+	for (var i = 0; i < expr.length; i++) {
+		if (expr[i] in env) {
+			args.push(env[expr[i]]);
+		}	else {
+			args.push(expr[i]);
+		}
+	}
+
+	var fn = args[0];
+	args = args.slice(1);
+
+	if (this.procedures.hasOwnProperty(fn)) {
+		return this.procedures[fn].call(this, args, env);
+	} else if (procedures.hasOwnProperty(fn)) {
+		return procedures[fn].call(this, args, env);
+	} else {
+		return fn;
+	}
+
+	return false;
+};
+
+var atoms = {
+	'nil': false,
+	't': true,
+};
+
+var procedures = {
+	'defun': function(args) {
+		var fn = args[0], a = args[1], body = args.slice(2);
+
+		this.procedures[fn] = function(_args, env) {
+			var _env = Object.create(env), res = false;
+
+			for (var i = 0; i < a.length; i++) {
+				_env[a[i]] = this.exec(_args[i], _env);
+			}
+
+			for (var j = 0; j < body.length; j++) {
+				res = this.exec(body[j], _env);
+			}
+
+			return res;
+		};
+
+		return fn;
+	},
+
+	'if': function(args, env) {
+		var condition = this.exec(args[0], env), res = false;
+
+		if (condition !== false) {
+			res = this.exec(args[1], env);
+		}	else if (args[2]) {
+			res = this.exec(args[2], env);
+		}
+
+		return res;
+	},
+
+	'setq': function(args, env) {
+		var res = false;
+
+		for (var i = 0; i < args.length; i += 2) {
+			res = env[args[i]] = this.exec(args[i + 1], env);
+		}
+
+		return res;
+	},
+
+	'let': function(args, env) {
+		env[this.exec(args[0][0][0], env)] = this.exec(args[0][0][1], env);
+
+		return this.exec(args[1], env);
+	},
+
+	'+': function(args, env) {
+		var res = 0;
+
+		for (var i = 0; i < args.length; i++) {
+			res += this.exec(args[i], env);
+		}
+
+		return res;
+	},
+
+	'-': function(args, env) {
+		var res = this.exec(args[0], env);
+
+		for (var i = 1; i < args.length; i++) {
+			res -= this.exec(args[i], env);
+		}
+
+		return res;
+	},
+
+	'*': function(args, env) {
+		var res = 1;
+
+		for (var i = 0; i < args.length; i++) {
+			res *= this.exec(args[i], env);
+		}
+
+		return res;
+	},
+
+	'/': function(args, env) {
+		var res = this.exec(args[0], env);
+
+		for (var i = 1; i < args.length; i++) {
+			res /= this.exec(args[i], env);
+		}
+
+		return res;
+	},
+
+	// gonometry
+	'cos': function(args, env) {
+		return Math.cos(this.exec(args[0]), env);
+	},
+
+	'sin': function(args, env) {
+		return Math.sin(this.exec(args[0]), env);
+	},
+
+	'tan': function(args, env) {
+		return Math.tan(this.exec(args[0]), env);
+	},
+
+	// comparison
+	'<=': function(a, env) { return this.exec(a[0], env) <=  this.exec(a[1], env); },
+	'<':  function(a, env) { return this.exec(a[0], env) <   this.exec(a[1], env); },
+	'>=': function(a, env) { return this.exec(a[0], env) >=  this.exec(a[1], env); },
+	'>':  function(a, env) { return this.exec(a[0], env) >   this.exec(a[1], env); },
+	'=':  function(a, env) { return this.exec(a[0], env) ==  this.exec(a[1], env); },
+	'eq': function(a, env) { return this.exec(a[0], env) === this.exec(a[1], env); },
+
+	// logical
+	'not': function(args, env) {
+		return !this.exec(args[0], env);
+	},
+
+	'and': function(args, env) {
+		var res = false;
+
+		for (var i = 0; i < args.length; i++) {
+			if ((res = this.exec(args[i], env)) === false) {
+				return false;
+			}
+		}
+
+		return res;
+	},
+
+	'or': function(args, env) {
+		var res = false;
+
+		for (var i = 0; i < args.length; i++) {
+			if ((res = this.exec(args[i], env)) !== false) {
+				return res;
+			}
+		}
+
+		return false;
+	},
+
+	// stuff
+
+	'list': function(args, env) {
+		for (var i = 0; i < args.length; i++) {
+			args[i] = this.exec(args[i], env);
+		}
+
+		return args;
+	},
+
+	'progn': function(args, env) {
+		var res = this.exec(['list'].concat(args), env);
+
+		return res.length ? res[res.length - 1] : false;
+	},
+
+	'print': function(args, env) {
+		var res = this.exec(['progn'].concat(args), env);
+
+		console.log(res);
+
+		return res;
+	},
+};
+
+module.exports = Context;
+
+},{"./parse":7}],7:[function(require,module,exports){
+"use strict";
+
+var trim = String.prototype.trim || function(){
+	return (this + '').replace(/^\s+|\s+$/g, '');
+};
+
+module.exports = function(text){
+
+	text = trim.call(text);
+
+	if (text.charAt(0) != '(') return text;
+
+	var stack = [];
+	var token;
+	var tokens = '';
+	var comment = false;
+	var i = 0;
+	var expr;
+
+	while (i < text.length){
+		token = text.charAt(i++);
+
+		if (token == '(' || token == ')' || (token == ' ' && !comment)){
+			if (expr && tokens.length){
+				var n = +tokens;
+				expr.push(isNaN(n) ? tokens : n);
+			}
+			tokens = '';
+		} else {
+			if (token == '"') comment = !comment;
+			if (!/\s/.test(token) || comment) tokens += token;
+		}
+
+		if (token == '('){
+
+			var previous = expr;
+			expr = [];
+
+			if (previous){
+				// push the previous expresion to the stack
+				stack.push(previous);
+				// if expr is not top-level, append the expression
+				previous.push(expr);
+			}
+
+		} else if (token == ')'){
+
+			// pop one from stack
+			var pop = stack.pop();
+			// stack is empty, so expr is the top-level expression
+			if (!pop) return expr;
+			expr = pop;
+
+		}
+
+	}
+
+	throw new Error('unbalanced parentheses');
+
+};
+
+},{}],8:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -754,7 +1095,7 @@ var defaults = function(object, source, guard) {
 
 module.exports = defaults;
 
-},{"lodash._objecttypes":6,"lodash.keys":7}],6:[function(require,module,exports){
+},{"lodash._objecttypes":9,"lodash.keys":10}],9:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -776,7 +1117,7 @@ var objectTypes = {
 
 module.exports = objectTypes;
 
-},{}],7:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -814,7 +1155,7 @@ var keys = !nativeKeys ? shimKeys : function(object) {
 
 module.exports = keys;
 
-},{"lodash._isnative":8,"lodash._shimkeys":9,"lodash.isobject":10}],8:[function(require,module,exports){
+},{"lodash._isnative":11,"lodash._shimkeys":12,"lodash.isobject":13}],11:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -850,7 +1191,7 @@ function isNative(value) {
 
 module.exports = isNative;
 
-},{}],9:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -890,7 +1231,7 @@ var shimKeys = function(object) {
 
 module.exports = shimKeys;
 
-},{"lodash._objecttypes":6}],10:[function(require,module,exports){
+},{"lodash._objecttypes":9}],13:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -931,676 +1272,4 @@ function isObject(value) {
 
 module.exports = isObject;
 
-},{"lodash._objecttypes":6}],11:[function(require,module,exports){
-var json = typeof JSON !== undefined ? JSON : require('jsonify');
-var map = require('array-map');
-var filter = require('array-filter');
-var reduce = require('array-reduce');
-
-exports.quote = function (xs) {
-    return map(xs, function (s) {
-        if (s && typeof s === 'object') {
-            return s.op.replace(/(.)/g, '\\$1');
-        }
-        else if (/["\s]/.test(s) && !/'/.test(s)) {
-            return "'" + s.replace(/(['\\])/g, '\\$1') + "'";
-        }
-        else if (/["'\s]/.test(s)) {
-            return '"' + s.replace(/(["\\$`(){}!#&*|])/g, '\\$1') + '"';
-        }
-        else {
-            return String(s).replace(/([\\$`(){}!#&*|])/g, '\\$1');
-        }
-    }).join(' ');
-};
-
-var CONTROL = '(?:' + [
-    '\\|\\|', '\\&\\&', ';;', '\\|\\&', '[&;()|<>]'
-].join('|') + ')';
-var META = '|&;()<> \\t';
-var BAREWORD = '(\\\\[\'"' + META + ']|[^\\s\'"' + META + '])+';
-var SINGLE_QUOTE = '"((\\\\"|[^"])*?)"';
-var DOUBLE_QUOTE = '\'((\\\\\'|[^\'])*?)\'';
-
-var TOKEN = '';
-for (var i = 0; i < 4; i++) {
-    TOKEN += (Math.pow(16,8)*Math.random()).toString(16);
-}
-
-exports.parse = function (s, env) {
-    var mapped = parse(s, env);
-    if (typeof env !== 'function') return mapped;
-    return reduce(mapped, function (acc, s) {
-        if (typeof s === 'object') return acc.concat(s);
-        var xs = s.split(RegExp('(' + TOKEN + '.*?' + TOKEN + ')', 'g'));
-        if (xs.length === 1) return acc.concat(xs[0]);
-        return acc.concat(map(filter(xs, Boolean), function (x) {
-            if (RegExp('^' + TOKEN).test(x)) {
-                return json.parse(x.split(TOKEN)[1]);
-            }
-            else return x;
-        }));
-    }, []);
-};
-
-function parse (s, env) {
-    var chunker = new RegExp([
-        '(' + CONTROL + ')', // control chars
-        '(' + BAREWORD + '|' + SINGLE_QUOTE + '|' + DOUBLE_QUOTE + ')*'
-    ].join('|'), 'g');
-    var match = filter(s.match(chunker), Boolean);
-    
-    if (!match) return [];
-    if (!env) env = {};
-    return map(match, function (s) {
-        if (RegExp('^' + CONTROL + '$').test(s)) {
-            return { op: s };
-        }
-
-        // Hand-written scanner/parser for Bash quoting rules:
-        //
-        //  1. inside single quotes, all characters are printed literally.
-        //  2. inside double quotes, all characters are printed literally
-        //     except variables prefixed by '$' and backslashes followed by
-        //     either a double quote or another backslash.
-        //  3. outside of any quotes, backslashes are treated as escape
-        //     characters and not printed (unless they are themselves escaped)
-        //  4. quote context can switch mid-token if there is no whitespace
-        //     between the two quote contexts (e.g. all'one'"token" parses as
-        //     "allonetoken")
-        var SQ = "'";
-        var DQ = '"';
-        var BS = '\\';
-        var DS = '$';
-        var quote = false;
-        var varname = false;
-        var esc = false;
-        var out = '';
-        var isGlob = false;
-
-        for (var i = 0, len = s.length; i < len; i++) {
-            var c = s.charAt(i);
-            isGlob = isGlob || (!quote && (c === '*' || c === '?'))
-            if (esc) {
-                out += c;
-                esc = false;
-            }
-            else if (quote) {
-                if (c === quote) {
-                    quote = false;
-                }
-                else if (quote == SQ) {
-                    out += c;
-                }
-                else { // Double quote
-                    if (c === BS) {
-                        i += 1;
-                        c = s.charAt(i);
-                        if (c === DQ || c === BS || c === DS) {
-                            out += c;
-                        } else {
-                            out += BS + c;
-                        }
-                    }
-                    else if (c === DS) {
-                        out += parseEnvVar();
-                    }
-                    else {
-                        out += c
-                    }
-                }
-            }
-            else if (c === DQ || c === SQ) {
-                quote = c
-            }
-            else if (RegExp('^' + CONTROL + '$').test(c)) {
-                return { op: s };
-            }
-            else if (c === BS) {
-                esc = true
-            }
-            else if (c === DS) {
-                out += parseEnvVar();
-            }
-            else out += c;
-        }
-
-        if (isGlob) return {op: 'glob', pattern: out};
-
-        return out
-
-        function parseEnvVar() {
-            i += 1;
-            var varend, varname;
-            //debugger
-            if (s.charAt(i) === '{') {
-                i += 1
-                if (s.charAt(i) === '}') {
-                    throw new Error("Bad substitution: " + s.substr(i - 2, 3));
-                }
-                varend = s.indexOf('}', i);
-                if (varend < 0) {
-                    throw new Error("Bad substitution: " + s.substr(i));
-                }
-                varname = s.substr(i, varend - i);
-                i = varend;
-            }
-            else if (/[*@#?$!_\-]/.test(s.charAt(i))) {
-                varname = s.charAt(i);
-                i += 1;
-            }
-            else {
-                varend = s.substr(i).match(/[^\w\d_]/);
-                if (!varend) {
-                    varname = s.substr(i);
-                    i = s.length;
-                } else {
-                    varname = s.substr(i, varend.index)
-                    i += varend.index - 1;
-                }
-            }
-            return getVar(null, '', varname);
-        }
-    });
-    
-    function getVar (_, pre, key) {
-        var r = typeof env === 'function' ? env(key) : env[key];
-        if (r === undefined) r = '';
-        
-        if (typeof r === 'object') {
-            return pre + TOKEN + json.stringify(r) + TOKEN;
-        }
-        else return pre + r;
-    }
-};
-
-},{"array-filter":12,"array-map":13,"array-reduce":14,"jsonify":15}],12:[function(require,module,exports){
-/**
- * Array#filter.
- *
- * @param {Array} arr
- * @param {Function} fn
- * @return {Array}
- */
-
-module.exports = function (arr, fn) {
-  if (arr.filter) return arr.filter(fn);
-  var ret = [];
-  for (var i = 0; i < arr.length; i++) {
-    if (!hasOwn.call(arr, i)) continue;
-    if (fn(arr[i], i, arr)) ret.push(arr[i]);
-  }
-  return ret;
-};
-
-var hasOwn = Object.prototype.hasOwnProperty;
-
-},{}],13:[function(require,module,exports){
-module.exports = function (xs, f) {
-    if (xs.map) return xs.map(f);
-    var res = [];
-    for (var i = 0; i < xs.length; i++) {
-        var x = xs[i];
-        if (hasOwn.call(xs, i)) res.push(f(x, i, xs));
-    }
-    return res;
-};
-
-var hasOwn = Object.prototype.hasOwnProperty;
-
-},{}],14:[function(require,module,exports){
-var hasOwn = Object.prototype.hasOwnProperty;
-
-module.exports = function (xs, f, acc) {
-    var hasAcc = arguments.length >= 3;
-    if (hasAcc && xs.reduce) return xs.reduce(f, acc);
-    if (xs.reduce) return xs.reduce(f);
-    
-    for (var i = 0; i < xs.length; i++) {
-        if (!hasOwn.call(xs, i)) continue;
-        if (!hasAcc) {
-            acc = xs[i];
-            hasAcc = true;
-            continue;
-        }
-        acc = f(acc, xs[i], i);
-    }
-    return acc;
-};
-
-},{}],15:[function(require,module,exports){
-exports.parse = require('./lib/parse');
-exports.stringify = require('./lib/stringify');
-
-},{"./lib/parse":16,"./lib/stringify":17}],16:[function(require,module,exports){
-var at, // The index of the current character
-    ch, // The current character
-    escapee = {
-        '"':  '"',
-        '\\': '\\',
-        '/':  '/',
-        b:    '\b',
-        f:    '\f',
-        n:    '\n',
-        r:    '\r',
-        t:    '\t'
-    },
-    text,
-
-    error = function (m) {
-        // Call error when something is wrong.
-        throw {
-            name:    'SyntaxError',
-            message: m,
-            at:      at,
-            text:    text
-        };
-    },
-    
-    next = function (c) {
-        // If a c parameter is provided, verify that it matches the current character.
-        if (c && c !== ch) {
-            error("Expected '" + c + "' instead of '" + ch + "'");
-        }
-        
-        // Get the next character. When there are no more characters,
-        // return the empty string.
-        
-        ch = text.charAt(at);
-        at += 1;
-        return ch;
-    },
-    
-    number = function () {
-        // Parse a number value.
-        var number,
-            string = '';
-        
-        if (ch === '-') {
-            string = '-';
-            next('-');
-        }
-        while (ch >= '0' && ch <= '9') {
-            string += ch;
-            next();
-        }
-        if (ch === '.') {
-            string += '.';
-            while (next() && ch >= '0' && ch <= '9') {
-                string += ch;
-            }
-        }
-        if (ch === 'e' || ch === 'E') {
-            string += ch;
-            next();
-            if (ch === '-' || ch === '+') {
-                string += ch;
-                next();
-            }
-            while (ch >= '0' && ch <= '9') {
-                string += ch;
-                next();
-            }
-        }
-        number = +string;
-        if (!isFinite(number)) {
-            error("Bad number");
-        } else {
-            return number;
-        }
-    },
-    
-    string = function () {
-        // Parse a string value.
-        var hex,
-            i,
-            string = '',
-            uffff;
-        
-        // When parsing for string values, we must look for " and \ characters.
-        if (ch === '"') {
-            while (next()) {
-                if (ch === '"') {
-                    next();
-                    return string;
-                } else if (ch === '\\') {
-                    next();
-                    if (ch === 'u') {
-                        uffff = 0;
-                        for (i = 0; i < 4; i += 1) {
-                            hex = parseInt(next(), 16);
-                            if (!isFinite(hex)) {
-                                break;
-                            }
-                            uffff = uffff * 16 + hex;
-                        }
-                        string += String.fromCharCode(uffff);
-                    } else if (typeof escapee[ch] === 'string') {
-                        string += escapee[ch];
-                    } else {
-                        break;
-                    }
-                } else {
-                    string += ch;
-                }
-            }
-        }
-        error("Bad string");
-    },
-
-    white = function () {
-
-// Skip whitespace.
-
-        while (ch && ch <= ' ') {
-            next();
-        }
-    },
-
-    word = function () {
-
-// true, false, or null.
-
-        switch (ch) {
-        case 't':
-            next('t');
-            next('r');
-            next('u');
-            next('e');
-            return true;
-        case 'f':
-            next('f');
-            next('a');
-            next('l');
-            next('s');
-            next('e');
-            return false;
-        case 'n':
-            next('n');
-            next('u');
-            next('l');
-            next('l');
-            return null;
-        }
-        error("Unexpected '" + ch + "'");
-    },
-
-    value,  // Place holder for the value function.
-
-    array = function () {
-
-// Parse an array value.
-
-        var array = [];
-
-        if (ch === '[') {
-            next('[');
-            white();
-            if (ch === ']') {
-                next(']');
-                return array;   // empty array
-            }
-            while (ch) {
-                array.push(value());
-                white();
-                if (ch === ']') {
-                    next(']');
-                    return array;
-                }
-                next(',');
-                white();
-            }
-        }
-        error("Bad array");
-    },
-
-    object = function () {
-
-// Parse an object value.
-
-        var key,
-            object = {};
-
-        if (ch === '{') {
-            next('{');
-            white();
-            if (ch === '}') {
-                next('}');
-                return object;   // empty object
-            }
-            while (ch) {
-                key = string();
-                white();
-                next(':');
-                if (Object.hasOwnProperty.call(object, key)) {
-                    error('Duplicate key "' + key + '"');
-                }
-                object[key] = value();
-                white();
-                if (ch === '}') {
-                    next('}');
-                    return object;
-                }
-                next(',');
-                white();
-            }
-        }
-        error("Bad object");
-    };
-
-value = function () {
-
-// Parse a JSON value. It could be an object, an array, a string, a number,
-// or a word.
-
-    white();
-    switch (ch) {
-    case '{':
-        return object();
-    case '[':
-        return array();
-    case '"':
-        return string();
-    case '-':
-        return number();
-    default:
-        return ch >= '0' && ch <= '9' ? number() : word();
-    }
-};
-
-// Return the json_parse function. It will have access to all of the above
-// functions and variables.
-
-module.exports = function (source, reviver) {
-    var result;
-    
-    text = source;
-    at = 0;
-    ch = ' ';
-    result = value();
-    white();
-    if (ch) {
-        error("Syntax error");
-    }
-
-    // If there is a reviver function, we recursively walk the new structure,
-    // passing each name/value pair to the reviver function for possible
-    // transformation, starting with a temporary root object that holds the result
-    // in an empty key. If there is not a reviver function, we simply return the
-    // result.
-
-    return typeof reviver === 'function' ? (function walk(holder, key) {
-        var k, v, value = holder[key];
-        if (value && typeof value === 'object') {
-            for (k in value) {
-                if (Object.prototype.hasOwnProperty.call(value, k)) {
-                    v = walk(value, k);
-                    if (v !== undefined) {
-                        value[k] = v;
-                    } else {
-                        delete value[k];
-                    }
-                }
-            }
-        }
-        return reviver.call(holder, key, value);
-    }({'': result}, '')) : result;
-};
-
-},{}],17:[function(require,module,exports){
-var cx = /[\u0000\u00ad\u0600-\u0604\u070f\u17b4\u17b5\u200c-\u200f\u2028-\u202f\u2060-\u206f\ufeff\ufff0-\uffff]/g,
-    escapable = /[\\\"\x00-\x1f\x7f-\x9f\u00ad\u0600-\u0604\u070f\u17b4\u17b5\u200c-\u200f\u2028-\u202f\u2060-\u206f\ufeff\ufff0-\uffff]/g,
-    gap,
-    indent,
-    meta = {    // table of character substitutions
-        '\b': '\\b',
-        '\t': '\\t',
-        '\n': '\\n',
-        '\f': '\\f',
-        '\r': '\\r',
-        '"' : '\\"',
-        '\\': '\\\\'
-    },
-    rep;
-
-function quote(string) {
-    // If the string contains no control characters, no quote characters, and no
-    // backslash characters, then we can safely slap some quotes around it.
-    // Otherwise we must also replace the offending characters with safe escape
-    // sequences.
-    
-    escapable.lastIndex = 0;
-    return escapable.test(string) ? '"' + string.replace(escapable, function (a) {
-        var c = meta[a];
-        return typeof c === 'string' ? c :
-            '\\u' + ('0000' + a.charCodeAt(0).toString(16)).slice(-4);
-    }) + '"' : '"' + string + '"';
-}
-
-function str(key, holder) {
-    // Produce a string from holder[key].
-    var i,          // The loop counter.
-        k,          // The member key.
-        v,          // The member value.
-        length,
-        mind = gap,
-        partial,
-        value = holder[key];
-    
-    // If the value has a toJSON method, call it to obtain a replacement value.
-    if (value && typeof value === 'object' &&
-            typeof value.toJSON === 'function') {
-        value = value.toJSON(key);
-    }
-    
-    // If we were called with a replacer function, then call the replacer to
-    // obtain a replacement value.
-    if (typeof rep === 'function') {
-        value = rep.call(holder, key, value);
-    }
-    
-    // What happens next depends on the value's type.
-    switch (typeof value) {
-        case 'string':
-            return quote(value);
-        
-        case 'number':
-            // JSON numbers must be finite. Encode non-finite numbers as null.
-            return isFinite(value) ? String(value) : 'null';
-        
-        case 'boolean':
-        case 'null':
-            // If the value is a boolean or null, convert it to a string. Note:
-            // typeof null does not produce 'null'. The case is included here in
-            // the remote chance that this gets fixed someday.
-            return String(value);
-            
-        case 'object':
-            if (!value) return 'null';
-            gap += indent;
-            partial = [];
-            
-            // Array.isArray
-            if (Object.prototype.toString.apply(value) === '[object Array]') {
-                length = value.length;
-                for (i = 0; i < length; i += 1) {
-                    partial[i] = str(i, value) || 'null';
-                }
-                
-                // Join all of the elements together, separated with commas, and
-                // wrap them in brackets.
-                v = partial.length === 0 ? '[]' : gap ?
-                    '[\n' + gap + partial.join(',\n' + gap) + '\n' + mind + ']' :
-                    '[' + partial.join(',') + ']';
-                gap = mind;
-                return v;
-            }
-            
-            // If the replacer is an array, use it to select the members to be
-            // stringified.
-            if (rep && typeof rep === 'object') {
-                length = rep.length;
-                for (i = 0; i < length; i += 1) {
-                    k = rep[i];
-                    if (typeof k === 'string') {
-                        v = str(k, value);
-                        if (v) {
-                            partial.push(quote(k) + (gap ? ': ' : ':') + v);
-                        }
-                    }
-                }
-            }
-            else {
-                // Otherwise, iterate through all of the keys in the object.
-                for (k in value) {
-                    if (Object.prototype.hasOwnProperty.call(value, k)) {
-                        v = str(k, value);
-                        if (v) {
-                            partial.push(quote(k) + (gap ? ': ' : ':') + v);
-                        }
-                    }
-                }
-            }
-            
-        // Join all of the member texts together, separated with commas,
-        // and wrap them in braces.
-
-        v = partial.length === 0 ? '{}' : gap ?
-            '{\n' + gap + partial.join(',\n' + gap) + '\n' + mind + '}' :
-            '{' + partial.join(',') + '}';
-        gap = mind;
-        return v;
-    }
-}
-
-module.exports = function (value, replacer, space) {
-    var i;
-    gap = '';
-    indent = '';
-    
-    // If the space parameter is a number, make an indent string containing that
-    // many spaces.
-    if (typeof space === 'number') {
-        for (i = 0; i < space; i += 1) {
-            indent += ' ';
-        }
-    }
-    // If the space parameter is a string, it will be used as the indent string.
-    else if (typeof space === 'string') {
-        indent = space;
-    }
-
-    // If there is a replacer, it must be a function or an array.
-    // Otherwise, throw an error.
-    rep = replacer;
-    if (replacer && typeof replacer !== 'function'
-    && (typeof replacer !== 'object' || typeof replacer.length !== 'number')) {
-        throw new Error('JSON.stringify');
-    }
-    
-    // Make a fake root object containing our value under the key of ''.
-    // Return the result of stringifying the value.
-    return str('', {'': value});
-};
-
-},{}]},{},[4]);
+},{"lodash._objecttypes":9}]},{},[4]);
