@@ -5,7 +5,8 @@
   "main": "index.js",
   "dependencies": {
     "lodash.defaults": "^2.4.1",
-    "shell-quote": "^1.4.2"
+    "shell-quote": "^1.4.2",
+    "LISP.js": "git://github.com/deoxxa/LISP.js"
   },
   "devDependencies": {
     "beefy": "^2.1.1",
