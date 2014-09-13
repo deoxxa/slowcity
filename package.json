@@ -14,7 +14,8 @@
   },
   "scripts": {
     "start": "beefy lib:app.js",
-    "build": "browserify -o app.js lib"
+    "build": "browserify -o app.js lib",
+    "gh-pages": "git checkout gh-pages; git merge master; npm run build; git add -f app.js; git commit -m 'rebuild app.js'; git checkout master;"
   },
   "repository": {
     "type": "git",
