@@ -389,7 +389,7 @@ var UI = module.exports = function UI(options) {
 
   this.ctx = new LISP.Context();
   for (var k in this.procedures) {
-    this.ctx.procedures[k] = this.procedures[k].bind(this);
+    this.ctx.attach(k, this.procedures[k].bind(this));
   }
 
   this.mouseEnabled = true;
@@ -410,12 +410,25 @@ UI.prototype.procedures = {
     }
 
     console.log.apply(console, res);
+
+    return {
+      type: "boolean",
+      value: false,
+    };
   },
   index: function index(args, env) {
     var i = this.ctx.exec(args[0], env),
         a = this.ctx.exec(args[1], env);
 
-    return this.ctx.exec(a[i]);
+    if (i.type !== "number") {
+      throw new Error("invalid index type in index");
+    }
+
+    if (a.type !== "list") {
+      throw new Error("invalid list type in index");
+    }
+
+    return this.ctx.exec(a.cells[i.value]);
   },
   concatenate: function concatenate(args, env) {
     var self = this;
@@ -424,76 +437,146 @@ UI.prototype.procedures = {
   },
   debug: function debug(args, env) {
     if (args.length > 0) {
-      this.renderer.debug = this.ctx.exec(args[0], env);
+      this.renderer.debug = this.ctx.exec(args[0], env).value;
     }
 
-    return this.renderer.debug;
+    return {
+      type: "boolean",
+      value: this.renderer.debug,
+    };
   },
   mouse: function mouse(args, env) {
     if (args.length > 0) {
-      this.mouseEnabled = this.ctx.exec(args[0], env);
+      this.mouseEnabled = this.ctx.exec(args[0], env).value;
     }
 
-    return this.mouseEnabled;
+    return {
+      type: "boolean",
+      value: this.mouseEnabled,
+    };
   },
   history: function history(args, env) {
-    return this.history;
+    return {
+      type: "list",
+      eval: false,
+      cells: this.history.map(function(e) {
+        return {type: "string", value: e};
+      }),
+    };
   },
   cursor: function cursor(args, env) {
     if (args.length === 2) {
-      this.renderer.cursorX = this.ctx.exec(args[0], env);
-      this.renderer.cursorY = this.ctx.exec(args[1], env);
+      this.renderer.cursorX = this.ctx.exec(args[0], env).value;
+      this.renderer.cursorY = this.ctx.exec(args[1], env).value;
     }
 
-    return [
-      this.renderer.cursorX,
-      this.renderer.cursorY,
-    ];
+    return {
+      type: "list",
+      eval: false,
+      cells: [
+        {type: "number", value: this.renderer.cursorX},
+        {type: "number", value: this.renderer.cursorY},
+      ],
+    };
   },
   select: function select(args, env) {
     if (args.length === 4) {
       this.renderer.selectActive = true;
-      this.renderer.selectX = this.ctx.exec(args[0], env);
-      this.renderer.selectY = this.ctx.exec(args[1], env);
-      this.renderer.selectW = this.ctx.exec(args[2], env);
-      this.renderer.selectH = this.ctx.exec(args[3], env);
+      this.renderer.selectX = this.ctx.exec(args[0], env).value;
+      this.renderer.selectY = this.ctx.exec(args[1], env).value;
+      this.renderer.selectW = this.ctx.exec(args[2], env).value;
+      this.renderer.selectH = this.ctx.exec(args[3], env).value;
     } else if (args.length === 1) {
-      this.renderer.selectActive = !!this.ctx.exec(args[0], env);
+      this.renderer.selectActive = !!this.ctx.exec(args[0], env).value;
     }
 
-    return [
-      this.renderer.selectActive,
-      this.renderer.selectX,
-      this.renderer.selectY,
-      this.renderer.selectW,
-      this.renderer.selectH,
-    ];
+    return {
+      type: "list",
+      eval: false,
+      cells: [
+        {type: "boolean", value: this.renderer.selectActive},
+        {type: "number", value: this.renderer.selectX},
+        {type: "number", value: this.renderer.selectY},
+        {type: "number", value: this.renderer.selectW},
+        {type: "number", value: this.renderer.selectH},
+      ],
+    };
   },
   zone: function zone(args, env) {
-    var x = this.ctx.exec(args[0]),
-        y = this.ctx.exec(args[1]),
-        w = this.ctx.exec(args[2]),
-        h = this.ctx.exec(args[3]),
-        type = this.ctx.exec(args[4]);
+    var x = this.ctx.exec(args[0], env),
+        y = this.ctx.exec(args[1], env),
+        w = this.ctx.exec(args[2], env),
+        h = this.ctx.exec(args[3], env),
+        type = this.ctx.exec(args[4], env);
 
-    for (var i=0;i<w;i++) {
-      for (var j=0;j<h;j++) {
-        this.map.setZone(x+i, y+j, type);
+    if (x.type !== "number") {
+      throw new Error("invalid x type in zone function");
+    }
+
+    if (y.type !== "number") {
+      throw new Error("invalid y type in zone function");
+    }
+
+    if (w.type !== "number") {
+      throw new Error("invalid w type in zone function");
+    }
+
+    if (h.type !== "number") {
+      throw new Error("invalid h type in zone function");
+    }
+
+    if (type.type !== "number") {
+      throw new Error("invalid zone type in zone function");
+    }
+
+    for (var i=0;i<w.value;i++) {
+      for (var j=0;j<h.value;j++) {
+        this.map.setZone(x.value+i, y.value+j, type.value);
       }
     }
+
+    return {
+      type: "boolean",
+      value: false,
+    };
   },
   road: function road(args, env) {
-    var x = this.ctx.exec(args[0]),
-        y = this.ctx.exec(args[1]),
-        w = this.ctx.exec(args[2]),
-        h = this.ctx.exec(args[3]),
-        d = this.ctx.exec(args[4]);
+    var x = this.ctx.exec(args[0], env),
+        y = this.ctx.exec(args[1], env),
+        w = this.ctx.exec(args[2], env),
+        h = this.ctx.exec(args[3], env),
+        state = this.ctx.exec(args[4], env);
 
-    for (var i=0;i<w;i++) {
-      for (var j=0;j<h;j++) {
-        this.map.setRoad(x+i, y+j, !d);
+    if (x.type !== "number") {
+      throw new Error("invalid x type in zone function");
+    }
+
+    if (y.type !== "number") {
+      throw new Error("invalid y type in zone function");
+    }
+
+    if (w.type !== "number") {
+      throw new Error("invalid w type in zone function");
+    }
+
+    if (h.type !== "number") {
+      throw new Error("invalid h type in zone function");
+    }
+
+    if (state.type !== "boolean") {
+      throw new Error("invalid state type in zone function");
+    }
+
+    for (var i=0;i<w.value;i++) {
+      for (var j=0;j<h.value;j++) {
+        this.map.setRoad(x.value+i, y.value+j, state.value);
       }
     }
+
+    return {
+      type: "boolean",
+      value: false,
+    };
   },
 };
 
@@ -778,6 +861,9 @@ window.addEventListener("load", function() {
 
     ui.attachEvents();
     renderer.start();
+
+    ui.ctx.exec("(defun rselect (w h) (let (('p (cursor))) (select (index 0 p) (index 1 p) w h)))");
+    ui.ctx.exec("(defun szone (z) (let (('s (select))) (zone (index 1 s) (index 2 s) (index 3 s) (index 4 s) z)))");
   });
 
   window.addEventListener("resize", function() {
@@ -797,8 +883,19 @@ exports.Context = require('./context');
 var parser = require('./parser');
 
 var Context = function Context() {
-	this.procedures = Object.create(builtins);
 	this.globalenv = Object.create(null);
+
+	for (var k in builtins) {
+		this.attach(k, builtins[k]);
+	}
+};
+
+Context.prototype.attach = function attach(name, fn) {
+	this.globalenv[name] = {
+		type: "function",
+		name: name,
+		fn: fn,
+	};
 };
 
 Context.prototype.exec = function(expr, env) {
@@ -807,23 +904,16 @@ Context.prototype.exec = function(expr, env) {
 	}
 
 	if (expr.type === "string" || expr.type === "number" || expr.type === "boolean") {
-		return expr.value;
+		return expr;
 	}
 
-	// if ((expr.type === "symbol" || expr.type === "list") && (expr.eval === false)) {
-	// 	return expr;
-	// }
+	if (!env) {
+		env = this.globalenv;
+	}
 
 	if (expr.type === "symbol") {
 		if (expr.eval === false) {
 			return expr;
-		}
-
-		if (expr.name in this.procedures) {
-			return {
-				type: "function",
-				fn: this.procedures[expr.name],
-			};
 		}
 
 		if (expr.name in env) {
@@ -839,10 +929,6 @@ Context.prototype.exec = function(expr, env) {
 
 	if (expr.eval === false) {
 		return expr.cells;
-	}
-
-	if (!env) {
-		env = this.globalenv;
 	}
 
 	var fn = this.exec(expr.cells[0], env),
@@ -866,7 +952,7 @@ var builtins = {
 		}
 
 		if (typeof fargs !== "object" || fargs.type !== "list") {
-			throw new error("the argument list parameter of a defun statement must be a list");
+			throw new Error("the argument list parameter of a defun statement must be a list");
 		}
 
 		for (var i=0;i<fargs.cells.length;i++) {
@@ -890,19 +976,24 @@ var builtins = {
 			return res;
 		};
 
-		env[fname.name] = {
+		var res = {
 			type: "function",
+			name: fname.name,
 			fn: fn,
 		};
 
-		return fname.name;
+		env[fname.name] = res;
+
+		return res;
 	},
 
 	'if': function(args, env) {
-		var condition = this.exec(args[0], env),
-				res = false;
+		var res = {
+			type: "boolean",
+			value: false,
+		};
 
-		if (condition !== false) {
+		if (this.exec(args[0], env).value !== false) {
 			res = this.exec(args[1], env);
 		}	else if (args[2]) {
 			res = this.exec(args[2], env);
@@ -912,14 +1003,14 @@ var builtins = {
 	},
 
 	'setq': function(args, env) {
-		var res = false;
+		var res = null;
 
 		for (var i = 0; i < args.length; i += 2) {
-			if (typeof args[i] !== "object" || args[i].type !== "symbol") {
+			if (args[i].type !== "symbol") {
 				throw new Error("tried to assign to a non-symbol in setq");
 			}
 
-			res = env[args[i].name] = this.exec(args[i + 1], env);
+			res = env[args[i].name] = this.exec(args[i+1], env);
 		}
 
 		return res;
@@ -938,77 +1029,124 @@ var builtins = {
 	},
 
 	'+': function(args, env) {
-		var res = 0;
+		var res = this.exec(args[0], env).value;
 
-		for (var i = 0; i < args.length; i++) {
-			res += this.exec(args[i], env);
+		for (var i = 1; i < args.length; i++) {
+			res += this.exec(args[i], env).value;
 		}
 
-		return res;
+		return {type: "number", value: res};
 	},
 
 	'-': function(args, env) {
-		var res = this.exec(args[0], env);
+		var res = this.exec(args[0], env).value;
 
 		for (var i = 1; i < args.length; i++) {
-			res -= this.exec(args[i], env);
+			res -= this.exec(args[i], env).value;
 		}
 
-		return res;
+		return {type: "number", value: res};
 	},
 
 	'*': function(args, env) {
 		var res = 1;
 
 		for (var i = 0; i < args.length; i++) {
-			res *= this.exec(args[i], env);
+			res *= this.exec(args[i], env).value;
 		}
 
-		return res;
+		return {type: "number", value: res};
 	},
 
 	'/': function(args, env) {
-		var res = this.exec(args[0], env);
+		var res = this.exec(args[0], env).value;
 
 		for (var i = 1; i < args.length; i++) {
-			res /= this.exec(args[i], env);
+			res /= this.exec(args[i], env).value;
 		}
 
-		return res;
+		return {type: "number", value: res};
 	},
 
 	// gonometry
 	'cos': function(args, env) {
-		return Math.cos(this.exec(args[0]), env);
+		return {
+			type: "number",
+			value: Math.cos(this.exec(args[0], env).value),
+		};
 	},
 
 	'sin': function(args, env) {
-		return Math.sin(this.exec(args[0]), env);
+		return {
+			type: "number",
+			value: Math.sin(this.exec(args[0], env).value),
+		};
 	},
 
 	'tan': function(args, env) {
-		return Math.tan(this.exec(args[0]), env);
+		return {
+			type: "number",
+			value: Math.tan(this.exec(args[0], env).value),
+		};
 	},
 
 	// comparison
-	'<=': function(a, env) { return this.exec(a[0], env) <=  this.exec(a[1], env); },
-	'<':  function(a, env) { return this.exec(a[0], env) <   this.exec(a[1], env); },
-	'>=': function(a, env) { return this.exec(a[0], env) >=  this.exec(a[1], env); },
-	'>':  function(a, env) { return this.exec(a[0], env) >   this.exec(a[1], env); },
-	'=':  function(a, env) { return this.exec(a[0], env) ==  this.exec(a[1], env); },
-	'eq': function(a, env) { return this.exec(a[0], env) === this.exec(a[1], env); },
+	'<=': function(a, env) {
+		return {
+			type: "boolean",
+			value: this.exec(a[0], env).value <= this.exec(a[1], env).value,
+		};
+	},
+	'<': function(a, env) {
+		return {
+			type: "boolean",
+			value: this.exec(a[0], env).value < this.exec(a[1], env).value,
+		};
+	},
+	'>=': function(a, env) {
+		return {
+			type: "boolean",
+			value: this.exec(a[0], env).value >= this.exec(a[1], env).value,
+		};
+	},
+	'>': function(a, env) {
+		return {
+			type: "boolean",
+			value: this.exec(a[0], env).value > this.exec(a[1], env).value,
+		};
+	},
+	'=': function(a, env) {
+		return {
+			type: "boolean",
+			value: this.exec(a[0], env).value == this.exec(a[1], env).value,
+		};
+	},
+	'eq': function(a, env) {
+		return {
+			type: "boolean",
+			value: this.exec(a[0], env).value === this.exec(a[1], env).value,
+		};
+	},
 
 	// logical
 	'not': function(args, env) {
-		return !this.exec(args[0], env);
+		return {
+			type: "boolean",
+			value: !this.exec(args[0], env).value,
+		};
 	},
 
 	'and': function(args, env) {
-		var res = false;
+		var res = {
+			type: "boolean",
+			value: false,
+		};
 
 		for (var i = 0; i < args.length; i++) {
-			if ((res = this.exec(args[i], env)) === false) {
-				return false;
+			res = this.exec(args[i], env);
+
+			if (res.type === "boolean" && res.value === false) {
+				return res;
 			}
 		}
 
@@ -1016,15 +1154,20 @@ var builtins = {
 	},
 
 	'or': function(args, env) {
-		var res = false;
+		var res = {
+			type: "boolean",
+			value: false,
+		};
 
 		for (var i = 0; i < args.length; i++) {
-			if ((res = this.exec(args[i], env)) !== false) {
+			res = this.exec(args[i], env);
+
+			if (res.type !== "boolean" || res.value !== false) {
 				return res;
 			}
 		}
 
-		return false;
+		return res;
 	},
 
 	// stuff
@@ -1032,9 +1175,12 @@ var builtins = {
 	'list': function(args, env) {
 		var self = this;
 
-		return args.map(function(e) {
-			return self.exec(e, env);
-		});
+		var res = [];
+		for (var i=0;i<args.length;i++) {
+			res.push(self.exec(args[i], env));
+		}
+
+		return res;
 	},
 
 	'progn': function(args, env) {
@@ -1045,11 +1191,16 @@ var builtins = {
 
 		var res = this.exec(_args, env);
 
-		return res.length ? res[res.length - 1] : false;
+		return res.length ? res[res.length-1] : false;
 	},
 
 	'print': function(args, env) {
-		var res = this.exec(['progn'].concat(args), env);
+		var _args = {
+			type: "list",
+			cells: [{type: "symbol", eval: true, name: "progn"}].concat(args),
+		};
+
+		var res = this.exec(_args, env);
 
 		console.log(res);
 
